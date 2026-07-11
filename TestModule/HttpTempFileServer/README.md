@@ -18,6 +18,12 @@ GET  http://127.0.0.1:18080/abc.txt
 
 The example is stored at `/tmp/steady-http-files/abc.txt`. Uploads use a
 temporary file and atomic rename, so downloads never observe partial content.
+The server logs byte progress, percentage, elapsed time, and current/average
+MiB/s. For a reproducible interruption test, slow each 1 MiB chunk slightly:
+
+```bash
+invoke start --folder=steady-http-files --port=18080 --chunk-delay-ms=50
+```
 
 Cleanup is explicit:
 

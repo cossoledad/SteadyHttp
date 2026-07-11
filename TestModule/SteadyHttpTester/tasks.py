@@ -33,6 +33,22 @@ def build(context, build_type="Debug", remote="radxa-conan-pr"):
 
 
 @task
+def graph(context, build_type="Debug", remote="radxa-conan-pr", output="dependency-graph"):
+    """Export the resolved Conan dependency graph as HTML, DOT, and JSON."""
+    output_dir = ROOT / output
+    output_dir.mkdir(parents=True, exist_ok=True)
+    base = (f"conan graph info . -r={quote(remote)} "
+            f"-s build_type={quote(build_type)}")
+    with context.cd(str(ROOT)):
+        for graph_format in ("html", "dot", "json"):
+            destination = output_dir / f"steady-http-dependencies.{graph_format}"
+            context.run(
+                f"{base} --format={graph_format} --out-file={quote(destination)}"
+            )
+    print(f"dependency graphs written to {output_dir}")
+
+
+@task
 def test(context, file, upload_url, build_type="Debug", remote="radxa-conan-pr"):
     """Upload FILE to UPLOAD_URL, download it, and compare byte counts."""
     source = Path(file).expanduser().resolve()
@@ -57,3 +73,4 @@ def clean(_context):
     """Remove generated Conan and CMake files."""
     shutil.rmtree(ROOT / "build", ignore_errors=True)
     (ROOT / "CMakeUserPresets.json").unlink(missing_ok=True)
+    shutil.rmtree(ROOT / "dependency-graph", ignore_errors=True)

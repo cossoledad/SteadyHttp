@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 project(SteadyHttpTester LANGUAGES CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(SteadyHttp CONFIG REQUIRED)
 add_executable(steady-http-tester src/main.cpp)
 target_compile_features(steady-http-tester PRIVATE cxx_std_20)

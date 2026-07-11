@@ -2,8 +2,11 @@
 """Temporary HTTP PUT/POST upload and GET download file server."""
 
 import argparse
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import threading
+import time
 from urllib.parse import unquote, urlsplit
 
 
@@ -13,6 +16,8 @@ def arguments():
                         help="folder name created directly below /tmp")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18080)
+    parser.add_argument("--chunk-delay-ms", type=float, default=0.0,
+                        help="optional delay after each 1 MiB chunk for interruption tests")
     return parser.parse_args()
 
 
@@ -26,7 +31,52 @@ def requested_name(raw_path):
     return relative
 
 
-def make_handler(storage):
+def size_text(byte_count):
+    return f"{byte_count} B ({byte_count / (1024 * 1024):.2f} MiB)"
+
+
+class TransferLog:
+    def __init__(self, operation, name, total, client):
+        self.operation = operation
+        self.name = name
+        self.total = total
+        self.client = client
+        self.started = time.monotonic()
+        self.last_report = self.started
+        self.last_bytes = 0
+        self.report(0, force=True)
+
+    def report(self, transferred, force=False):
+        now = time.monotonic()
+        if not force and now - self.last_report < 1.0 and transferred != self.total:
+            return
+        elapsed = max(now - self.started, 1e-9)
+        interval = max(now - self.last_report, 1e-9)
+        average = transferred / elapsed / (1024 * 1024)
+        current = (transferred - self.last_bytes) / interval / (1024 * 1024)
+        percent = 100.0 if self.total == 0 else transferred * 100.0 / self.total
+        stamp = datetime.now().astimezone().isoformat(timespec="seconds")
+        print(
+            f"[{stamp}] [{threading.current_thread().name}] {self.client} "
+            f"{self.operation} {self.name!r}: {size_text(transferred)} / "
+            f"{size_text(self.total)} ({percent:.1f}%), "
+            f"current={current:.2f} MiB/s average={average:.2f} MiB/s "
+            f"elapsed={elapsed:.2f}s",
+            flush=True,
+        )
+        self.last_report = now
+        self.last_bytes = transferred
+
+    def failed(self, transferred, error):
+        elapsed = time.monotonic() - self.started
+        print(
+            f"{self.operation} {self.name!r} FAILED after {size_text(transferred)}, "
+            f"elapsed={elapsed:.2f}s: {type(error).__name__}: {error}",
+            flush=True,
+        )
+
+
+def make_handler(storage, chunk_delay):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -36,16 +86,25 @@ def make_handler(storage):
             if source is None or not source.is_file():
                 self.send_error(404, "file not found")
                 return
+            transferred = 0
+            total = source.stat().st_size
+            progress = TransferLog("DOWNLOAD", name, total, self.client_address[0])
             try:
                 self.send_response(200)
                 self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("Content-Length", str(source.stat().st_size))
+                self.send_header("Content-Length", str(total))
                 self.end_headers()
                 with source.open("rb") as stream:
                     while chunk := stream.read(1024 * 1024):
                         self.wfile.write(chunk)
-            except (OSError, BrokenPipeError) as error:
-                print(f"download {name!r} failed: {error}", flush=True)
+                        transferred += len(chunk)
+                        if transferred != total:
+                            progress.report(transferred)
+                        if chunk_delay:
+                            time.sleep(chunk_delay)
+                progress.report(transferred, force=True)
+            except (OSError, BrokenPipeError, ConnectionError) as error:
+                progress.failed(transferred, error)
 
         def do_PUT(self):
             self._upload()
@@ -68,6 +127,9 @@ def make_handler(storage):
 
             temporary = storage / f".{name}.uploading"
             destination = storage / name
+            total = remaining
+            transferred = 0
+            progress = TransferLog("UPLOAD", name, total, self.client_address[0])
             try:
                 with temporary.open("wb") as output:
                     while remaining:
@@ -76,11 +138,22 @@ def make_handler(storage):
                             raise OSError("request body ended early")
                         output.write(chunk)
                         remaining -= len(chunk)
+                        transferred += len(chunk)
+                        if transferred != total:
+                            progress.report(transferred)
+                        if chunk_delay:
+                            time.sleep(chunk_delay)
                 temporary.replace(destination)
             except OSError as error:
                 temporary.unlink(missing_ok=True)
-                self.send_error(500, str(error))
+                progress.failed(transferred, error)
+                try:
+                    self.send_error(500, str(error))
+                except (BrokenPipeError, ConnectionError):
+                    pass
                 return
+
+            progress.report(transferred, force=True)
 
             self.send_response(201)
             self.send_header("Location", f"/{name}")
@@ -99,9 +172,13 @@ def main():
         raise SystemExit("--folder must be one directory name below /tmp")
     storage = Path("/tmp") / args.folder
     storage.mkdir(mode=0o700, parents=True, exist_ok=True)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(storage))
+    if args.chunk_delay_ms < 0:
+        raise SystemExit("--chunk-delay-ms cannot be negative")
+    server = ThreadingHTTPServer(
+        (args.host, args.port), make_handler(storage, args.chunk_delay_ms / 1000.0))
     print(f"storage: {storage}", flush=True)
     print(f"listening: http://{args.host}:{server.server_port}/<file-name>", flush=True)
+    print(f"chunk delay: {args.chunk_delay_ms:.1f} ms", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

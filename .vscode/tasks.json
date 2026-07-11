@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SteadyHttpTester: build Debug",
+      "type": "shell",
+      "command": "invoke build --build-type=Debug --remote=radxa-conan-pr",
+      "options": {
+        "cwd": "${workspaceFolder}/TestModule/SteadyHttpTester"
+      },
+      "problemMatcher": "$gcc",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "SteadyHttpTester: Conan dependency graph",
+      "type": "shell",
+      "command": "invoke graph --build-type=Debug --remote=radxa-conan-pr",
+      "options": {
+        "cwd": "${workspaceFolder}/TestModule/SteadyHttpTester"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
