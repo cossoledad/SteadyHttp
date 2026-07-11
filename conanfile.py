@@ -3,11 +3,11 @@ from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 
 
 class SteadyHttpConan(ConanFile):
+    required_conan_version = ">=2.0"
     name = "steady-http"
     version = "0.1.0"
     package_type = "library"
     license = "MIT"
-    url = "https://example.invalid/steady-http"
     description = "A maintainable C++20 HTTP/HTTPS binary transfer client."
     topics = ("http", "https", "boost", "beast", "asio")
     settings = "os", "compiler", "build_type", "arch"
@@ -44,3 +44,4 @@ class SteadyHttpConan(ConanFile):
         self.cpp_info.libs = ["SteadyHttp"]
         self.cpp_info.set_property("cmake_file_name", "SteadyHttp")
         self.cpp_info.set_property("cmake_target_name", "SteadyHttp::SteadyHttp")
+        self.cpp_info.bindirs = []

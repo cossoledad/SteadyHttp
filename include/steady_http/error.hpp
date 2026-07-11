@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 namespace steady_http {
@@ -54,5 +55,8 @@ struct Error {
     bool retryable{};
     bool request_may_have_been_processed{};
 };
+
+[[nodiscard]] std::string_view to_string(ErrorCode code) noexcept;
+[[nodiscard]] std::string_view to_string(TransferStage stage) noexcept;
 
 }  // namespace steady_http

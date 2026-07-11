@@ -14,6 +14,7 @@ Boost.URL, and OpenSSL. Its public API does not expose those dependencies.
 - GET redirects (absolute or relative), loop limits, and removal of credentials
   on cross-host redirects
 - structured value-or-error results
+- bounded asynchronous execution using `ClientOptions::worker_threads`
 
 Each redirect target receives a fresh retry budget, while all redirects and
 attempts share one total deadline. Upload redirects are deliberately not
@@ -22,6 +23,10 @@ followed in version 0.1 because changing methods can have side effects.
 Request and response bodies are held completely in memory as `ByteVector`.
 The API is consequently intended for bounded transfers; streaming is planned
 for a later version.
+
+Async requests are queued onto a fixed worker set; the client does not create
+one thread per request. `stop()` is idempotent, cancels queued/active synchronous
+and asynchronous operations, and is safe to call from a completion callback.
 
 ## Example
 
@@ -32,6 +37,8 @@ steady_http::Client client;
 auto result = client.download({.url = "https://example.com/data.bin"});
 if (!result) {
     // result.error() contains code, stage, native error, and HTTP status.
+    std::cerr << steady_http::to_string(result.error().code) << ": "
+              << result.error().message << '\n';
 }
 ```
 

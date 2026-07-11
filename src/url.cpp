@@ -1,15 +1,27 @@
 #include "url.hpp"
 
 #include <boost/url.hpp>
+#include <charconv>
 
 namespace steady_http::detail {
+namespace {
+Error url_error(ErrorCode code, std::string message) {
+    return Error{.code = code,
+                 .stage = TransferStage::parse_url,
+                 .message = std::move(message),
+                 .system_error = {},
+                 .http_status = std::nullopt,
+                 .attempt = 0,
+                 .redirect_count = 0,
+                 .retryable = false,
+                 .request_may_have_been_processed = false};
+}
+}  // namespace
 
 Result<ParsedUrl> parse_url(const std::string& text) {
     const auto parsed = boost::urls::parse_uri(text);
     if (!parsed) {
-        return Error{.code = ErrorCode::invalid_url,
-                     .stage = TransferStage::parse_url,
-                     .message = "URL parsing failed"};
+        return url_error(ErrorCode::invalid_url, "URL parsing failed");
     }
     const auto url = parsed.value();
     Scheme scheme;
@@ -21,19 +33,23 @@ Result<ParsedUrl> parse_url(const std::string& text) {
         scheme = Scheme::https;
         default_port = "443";
     } else {
-        return Error{.code = ErrorCode::unsupported_scheme,
-                     .stage = TransferStage::parse_url,
-                     .message = "URL scheme must be http or https"};
+        return url_error(ErrorCode::unsupported_scheme, "URL scheme must be http or https");
     }
     if (url.host().empty()) {
-        return Error{.code = ErrorCode::invalid_url,
-                     .stage = TransferStage::parse_url,
-                     .message = "URL host is empty"};
+        return url_error(ErrorCode::invalid_url, "URL host is empty");
     }
     if (url.has_port() && url.port().empty()) {
-        return Error{.code = ErrorCode::invalid_url,
-                     .stage = TransferStage::parse_url,
-                     .message = "URL port is invalid"};
+        return url_error(ErrorCode::invalid_url, "URL port is invalid");
+    }
+    if (url.has_port()) {
+        unsigned port_number = 0;
+        const auto port_text = url.port();
+        const auto [end, error] =
+            std::from_chars(port_text.data(), port_text.data() + port_text.size(), port_number);
+        if (error != std::errc{} || end != port_text.data() + port_text.size() ||
+            port_number == 0 || port_number > 65535) {
+            return url_error(ErrorCode::invalid_url, "URL port must be an integer from 1 to 65535");
+        }
     }
     std::string host{url.host()};
     const std::string port = url.has_port() ? std::string{url.port()} : default_port;

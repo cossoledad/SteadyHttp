@@ -58,7 +58,8 @@ def clean(context, all=False):
 @task
 def format(context):
     """Format C++ sources with clang-format."""
-    files = [*ROOT.glob("include/**/*.hpp"), *ROOT.glob("src/**/*.cpp"), *ROOT.glob("tests/**/*.cpp"), *ROOT.glob("examples/**/*.cpp")]
+    files = [*ROOT.glob("include/**/*.hpp"), *ROOT.glob("src/**/*.cpp"),
+             *ROOT.glob("examples/**/*.cpp"), *ROOT.glob("TestModule/**/*.cpp")]
     if files:
         _run(context, "clang-format -i " + " ".join(str(path) for path in files))
 

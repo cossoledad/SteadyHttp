@@ -10,7 +10,11 @@ find_package(OpenSSL REQUIRED)
 add_library(SteadyHttp src/client.cpp src/error.cpp src/url.cpp)
 add_library(SteadyHttp::SteadyHttp ALIAS SteadyHttp)
 target_compile_features(SteadyHttp PUBLIC cxx_std_20)
-set_target_properties(SteadyHttp PROPERTIES CXX_EXTENSIONS OFF EXPORT_NAME SteadyHttp)
+set_target_properties(SteadyHttp PROPERTIES
+  CXX_EXTENSIONS OFF
+  EXPORT_NAME SteadyHttp
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR})
 target_include_directories(SteadyHttp PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(SteadyHttp PUBLIC Boost::system Boost::url OpenSSL::SSL OpenSSL::Crypto)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -32,4 +36,5 @@ if(STEADY_HTTP_ENABLE_INSTALL)
   configure_package_config_file(cmake/SteadyHttpConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/SteadyHttpConfig.cmake INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SteadyHttp)
   write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/SteadyHttpConfigVersion.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/SteadyHttpConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/SteadyHttpConfigVersion.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SteadyHttp)
+  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/steady-http)
 endif()

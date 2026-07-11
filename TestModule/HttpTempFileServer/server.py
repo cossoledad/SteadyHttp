@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
 import time
+import tempfile
 from urllib.parse import unquote, urlsplit
 
 
@@ -125,13 +126,16 @@ def make_handler(storage, chunk_delay):
                 self.send_error(400, "valid Content-Length is required")
                 return
 
-            temporary = storage / f".{name}.uploading"
             destination = storage / name
             total = remaining
             transferred = 0
             progress = TransferLog("UPLOAD", name, total, self.client_address[0])
+            temporary = None
             try:
-                with temporary.open("wb") as output:
+                with tempfile.NamedTemporaryFile(
+                    mode="wb", prefix=f".{name}.", suffix=".uploading",
+                    dir=storage, delete=False) as output:
+                    temporary = Path(output.name)
                     while remaining:
                         chunk = self.rfile.read(min(remaining, 1024 * 1024))
                         if not chunk:
@@ -145,7 +149,8 @@ def make_handler(storage, chunk_delay):
                             time.sleep(chunk_delay)
                 temporary.replace(destination)
             except OSError as error:
-                temporary.unlink(missing_ok=True)
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
                 progress.failed(transferred, error)
                 try:
                     self.send_error(500, str(error))
@@ -176,6 +181,7 @@ def main():
         raise SystemExit("--chunk-delay-ms cannot be negative")
     server = ThreadingHTTPServer(
         (args.host, args.port), make_handler(storage, args.chunk_delay_ms / 1000.0))
+    server.daemon_threads = True
     print(f"storage: {storage}", flush=True)
     print(f"listening: http://{args.host}:{server.server_port}/<file-name>", flush=True)
     print(f"chunk delay: {args.chunk_delay_ms:.1f} ms", flush=True)
