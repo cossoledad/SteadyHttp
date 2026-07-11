@@ -86,6 +86,8 @@ Testing is intentionally separated from the library build:
   files below `/tmp` and serves each file from the same URL.
 - [`SteadyHttpTester`](TestModule/SteadyHttpTester/README.md) is an independent
   Conan consumer that uploads and downloads selected files.
+- [`SteadyGet`](TestModule/SteadyGet/README.md) is a small wget-like Conan
+  consumer for downloading real HTTP/HTTPS resources to disk.
 
 Start the server first:
 
