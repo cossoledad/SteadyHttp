@@ -1,0 +1,6 @@
+[project]
+name = "steady-http-tools"
+version = "0.1.0"
+description = "Development tasks for SteadyHttp"
+requires-python = ">=3.10"
+dependencies = ["invoke>=2.2"]

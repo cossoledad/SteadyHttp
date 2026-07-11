@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(Boost REQUIRED COMPONENTS system url)
+find_dependency(OpenSSL REQUIRED)
+include("${CMAKE_CURRENT_LIST_DIR}/SteadyHttpTargets.cmake")

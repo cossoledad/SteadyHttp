@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.24)
+project(SteadyHttpTester LANGUAGES CXX)
+find_package(SteadyHttp CONFIG REQUIRED)
+add_executable(steady-http-tester src/main.cpp)
+target_compile_features(steady-http-tester PRIVATE cxx_std_20)
+target_link_libraries(steady-http-tester PRIVATE SteadyHttp::SteadyHttp)
