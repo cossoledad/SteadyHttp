@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <steady_http/client.hpp>
 #include <string>
@@ -82,10 +83,23 @@ void require_size(std::size_t expected, const steady_http::Response& response,
 }  // namespace
 
 int main(int argc, char** argv) try {
-    if (argc != 3) {
-        std::cerr << "usage: steady-http-tester FILE UPLOAD_URL\n"
-                     "example: steady-http-tester ./abc.txt http://127.0.0.1:18080/abc.txt\n";
+    if (argc < 3) {
+        std::cerr << "usage: steady-http-tester FILE URL [--ca-file PATH] [--expect-tls-failure]\n"
+                     "example: steady-http-tester ./abc.txt https://localhost:18443/abc.txt "
+                     "--ca-file ../HttpTempFileServer/certificates/ca-cert.pem\n";
         return 2;
+    }
+    std::optional<std::filesystem::path> ca_file;
+    bool expect_tls_failure = false;
+    for (int index = 3; index < argc; ++index) {
+        const std::string_view argument = argv[index];
+        if (argument == "--ca-file" && index + 1 < argc) {
+            ca_file = std::filesystem::absolute(argv[++index]);
+        } else if (argument == "--expect-tls-failure") {
+            expect_tls_failure = true;
+        } else {
+            throw std::runtime_error("unknown or incomplete argument: " + std::string(argument));
+        }
     }
     std::cout.setf(std::ios::fixed);
     std::cout.precision(2);
@@ -96,11 +110,28 @@ int main(int argc, char** argv) try {
     const auto source_size = static_cast<std::size_t>(source_size_value);
     const std::string url = argv[2];
     const auto options = large_file_options(source_size);
-    steady_http::Client client;
+    steady_http::ClientOptions client_options;
+    client_options.ca_file = ca_file;
+    steady_http::Client client{std::move(client_options)};
     std::cout << "source: " << source_path << '\n'
               << "URL: " << url << '\n'
               << "source size: " << source_size << " bytes\n"
               << "memory model: each request and response body is entirely resident in memory\n";
+    if (ca_file) std::cout << "custom CA: " << *ca_file << '\n';
+
+    if (expect_tls_failure) {
+        std::cout << "[TLS] expecting certificate verification failure..." << std::flush;
+        auto result = client.download({.url = url, .options = options});
+        if (result)
+            throw std::runtime_error("TLS request unexpectedly succeeded without the test CA");
+        if (result.error().code != steady_http::ErrorCode::certificate_verification_failed &&
+            result.error().code != steady_http::ErrorCode::tls_handshake_failed) {
+            require_success(result, "untrusted TLS rejection");
+        }
+        std::cout << " PASS | code=" << steady_http::to_string(result.error().code) << " | "
+                  << result.error().message << '\n';
+        return 0;
+    }
 
     {
         const auto load_started = Clock::now();

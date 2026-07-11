@@ -49,14 +49,15 @@ def graph(context, build_type="Debug", remote="radxa-conan-pr", output="dependen
 
 
 @task
-def test(context, file, upload_url, build_type="Debug", remote="radxa-conan-pr"):
+def test(context, file, upload_url, build_type="Debug", remote="radxa-conan-pr",
+         ca_file=None, expect_tls_failure=False):
     """Upload FILE to UPLOAD_URL, download it, and compare byte counts."""
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise Exit(f"input file does not exist: {source}", code=2)
     parsed = urlsplit(upload_url)
-    if parsed.scheme != "http" or not parsed.hostname or parsed.path in {"", "/"}:
-        raise Exit("upload-url must look like http://host:port/file-name", code=2)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.path in {"", "/"}:
+        raise Exit("upload-url must look like http[s]://host:port/file-name", code=2)
     try:
         with socket.create_connection((parsed.hostname, parsed.port or 80), timeout=1):
             pass
@@ -65,7 +66,15 @@ def test(context, file, upload_url, build_type="Debug", remote="radxa-conan-pr")
     executable = ROOT / "build" / build_type / "steady-http-tester"
     if not executable.exists():
         build(context, build_type=build_type, remote=remote)
-    context.run(f"{quote(executable)} {quote(source)} {quote(upload_url)}")
+    command = f"{quote(executable)} {quote(source)} {quote(upload_url)}"
+    if ca_file:
+        ca_path = Path(ca_file).expanduser().resolve()
+        if not ca_path.is_file():
+            raise Exit(f"CA file does not exist: {ca_path}", code=2)
+        command += f" --ca-file {quote(ca_path)}"
+    if expect_tls_failure:
+        command += " --expect-tls-failure"
+    context.run(command)
 
 
 @task

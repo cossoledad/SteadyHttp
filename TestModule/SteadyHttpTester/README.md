@@ -21,6 +21,24 @@ invoke test --file=/path/video.bin \
   --upload-url=http://127.0.0.1:18080/video.bin --build-type=Debug
 ```
 
+For HTTPS, first verify that the self-signed test hierarchy is rejected when
+its CA is not configured:
+
+```bash
+invoke test --file=/path/abc.txt \
+  --upload-url=https://localhost:18443/abc.txt \
+  --expect-tls-failure --build-type=Debug
+```
+
+Then trust only the generated test CA and run all four transfers:
+
+```bash
+invoke test --file=/path/abc.txt \
+  --upload-url=https://localhost:18443/abc.txt \
+  --ca-file=../HttpTempFileServer/certificates/ca-cert.pem \
+  --build-type=Debug
+```
+
 The `graph` command writes HTML, Graphviz DOT, and JSON representations into
 `dependency-graph/`. To debug, open this `SteadyHttpTester` directory as the VS
 Code workspace, start `HttpTempFileServer`, select **Debug SteadyHttpTester**,

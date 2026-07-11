@@ -94,6 +94,9 @@ cd TestModule/HttpTempFileServer
 invoke start --folder=steady-http-files --port=18080
 ```
 
+The server can also generate a private test CA and run in HTTPS mode; see its
+README for the trusted-CA and expected-untrusted-certificate test commands.
+
 Then run the consumer in another terminal:
 
 ```bash

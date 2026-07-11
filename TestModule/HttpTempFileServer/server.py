@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 import time
 import tempfile
+import ssl
 from urllib.parse import unquote, urlsplit
 
 
@@ -17,6 +18,9 @@ def arguments():
                         help="folder name created directly below /tmp")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18080)
+    parser.add_argument("--protocol", choices=("http", "https"), default="http")
+    parser.add_argument("--cert-file", type=Path)
+    parser.add_argument("--key-file", type=Path)
     parser.add_argument("--chunk-delay-ms", type=float, default=0.0,
                         help="optional delay after each 1 MiB chunk for interruption tests")
     return parser.parse_args()
@@ -182,8 +186,15 @@ def main():
     server = ThreadingHTTPServer(
         (args.host, args.port), make_handler(storage, args.chunk_delay_ms / 1000.0))
     server.daemon_threads = True
+    if args.protocol == "https":
+        if not args.cert_file or not args.key_file:
+            raise SystemExit("HTTPS requires --cert-file and --key-file")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(args.cert_file.expanduser(), args.key_file.expanduser())
+        server.socket = context.wrap_socket(server.socket, server_side=True)
     print(f"storage: {storage}", flush=True)
-    print(f"listening: http://{args.host}:{server.server_port}/<file-name>", flush=True)
+    print(f"listening: {args.protocol}://{args.host}:{server.server_port}/<file-name>", flush=True)
     print(f"chunk delay: {args.chunk_delay_ms:.1f} ms", flush=True)
     try:
         server.serve_forever()

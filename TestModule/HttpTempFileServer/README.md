@@ -25,6 +25,24 @@ MiB/s. For a reproducible interruption test, slow each 1 MiB chunk slightly:
 invoke start --folder=steady-http-files --port=18080 --chunk-delay-ms=50
 ```
 
+## HTTPS
+
+Generate a private test CA and a localhost certificate (SANs include
+`localhost`, `127.0.0.1`, and `::1`):
+
+```bash
+invoke certificates
+invoke start --protocol=https --host=127.0.0.1 --port=18443
+```
+
+Generated private keys and certificates are placed in `certificates/` and are
+ignored by Git. They are strictly for local tests. Custom paths are supported:
+
+```bash
+invoke start --protocol=https --port=18443 \
+  --cert-file=/path/server-cert.pem --key-file=/path/server-key.pem
+```
+
 Cleanup is explicit:
 
 ```bash
